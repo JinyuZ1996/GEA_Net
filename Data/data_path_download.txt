@@ -1,0 +1,2 @@
+MCC5-THU数据集：https://data.mendeley.com/datasets/p92gj2732w/2
+SEU数据集：https://gitee.com/zhengkun110/Mechanical-datasets

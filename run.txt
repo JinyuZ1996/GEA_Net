@@ -1,0 +1,36 @@
+Cross validate：python main.py --data_dir ./Data/sensor_data --mode cross_val
+
+python main.py --data_dir ./Data/sensor_data --mode standard
+
+python main.py --data_dir ./Data/sensor_data --mode few_shot --k_shots 1,3,5
+
+complete：
+
+python main.py \
+    --data_dir ./Data/sensor_data \
+    --mode standard \
+    --batch_size 256 \
+    --num_epochs 100 \
+    --embedding_size 16 \
+    --num_layers 2 \
+    --learning_rate 0.01 \
+    --gpu 0
+
+
+Dict:
+
+Data/
+└── sensor_data/
+    ├── condition_0/          # 工况0 (如 900 RPM, 0 N·m)
+    │   ├── fault_0/          # 健康状态
+    │   │   ├── sensor_1.csv
+    │   │   ├── sensor_2.csv
+    │   │   └── ...
+    │   ├── fault_1/          # 齿面磨损
+    │   │   ├── sensor_1.csv
+    │   │   └── ...
+    │   └── ...
+    ├── condition_1/          # 工况1 (如 900 RPM, 5 N·m)
+    │   └── ...
+    └── condition_2/          # 工况2 (如 1200 RPM, 0 N·m)
+        └── ...
