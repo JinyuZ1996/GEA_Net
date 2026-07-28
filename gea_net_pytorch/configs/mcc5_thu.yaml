@@ -1,0 +1,70 @@
+seed: 42
+device: auto
+output_dir: ../runs/mcc5_thu
+
+dataset:
+  name: mcc5_thu
+  root: ../../experiment/MCC5-THU-Gearbox-Benchmark-Datasets-main
+  cache_dir: ../cache/mcc5_thu
+  window_size: 1024
+  stride: 1024
+  normalization: per_window
+  channel_names: null
+  include_conditions: null
+  include_variable_condition: true
+  include_labels: null
+  target_conditions: null
+  target_fraction: 0.333333
+  split_fractions: [0.70, 0.15, 0.15]
+  max_classes: null
+  max_windows_per_recording: null
+  max_recordings_per_class_condition: null
+
+graph:
+  correlation_threshold: 0.30
+  correlation_top_k: 2
+  prior_samples: 256
+  # Two triaxial accelerometers: within-sensor cliques plus same-axis bridges.
+  physical_edges:
+    - [0, 1]
+    - [0, 2]
+    - [1, 2]
+    - [3, 4]
+    - [3, 5]
+    - [4, 5]
+    - [0, 3]
+    - [1, 4]
+    - [2, 5]
+
+model:
+  input_dim: 1
+  embed_dim: 16
+  memory_size: 16
+  graph_layers: 2
+  graph_beta: 0.5
+  temporal_kernel_size: 7
+  attention_normalization_steps: 1
+  dropout: 0.1
+
+training:
+  mode: fewshot
+  epochs: 50
+  learning_rate: 0.001
+  minimum_learning_rate: 0.00001
+  weight_decay: 0.0
+  batch_size: 256
+  num_workers: 0
+  lambda_consistency: 0.1
+  lambda_edge: 0.01
+  gradient_clip: 5.0
+  early_stopping_patience: 10
+  ways: 5
+  shots: 5
+  queries: 15
+  episodes_per_epoch: 100
+  meta_batch_size: 4
+  inner_steps: 1
+  inner_learning_rate: 0.01
+  first_order: true
+  validation_episodes: 20
+  evaluation_episodes: 100
