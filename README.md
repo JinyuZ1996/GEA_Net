@@ -1,85 +1,118 @@
 # GEA-Net PyTorch
 
-本项目根据《面向设备故障诊断的轻量图外部注意力网络》实现了一套可同时处理 MCC5-THU 与 SEU 的 PyTorch 代码。它包含数据发现、格式自适应、无泄漏滑窗切分、缓存、相关性/物理先验构图、GEA-Net、普通监督训练、Proto-MAML 少样本训练、目标工况原型评估、指标和测试。
+This project provides a PyTorch implementation of **GEA-Net (Graph External Attention Network)** proposed in the paper *GEA-Net: A Lightweight Graph External Attention Network for Industrial Equipment Fault Diagnosis*. The framework supports both the **MCC5-THU** and **SEU** datasets through a unified pipeline. It includes automatic dataset discovery, adaptive data formatting, leakage-free sliding-window splitting, preprocessing cache, graph construction based on correlation and physical priors, GEA-Net, standard supervised training, Proto-MAML few-shot learning, target-domain prototype evaluation, performance metrics, and testing.
 
-## 环境
+## Environment
 
-建议 Python 3.10～3.12、PyTorch 2.1 
+Recommended environment:
 
-若在其他环境中安装：
+-   Python 3.10--3.12
+-   PyTorch 2.1
 
-```powershell
+Install the dependencies with:
+
+``` powershell
 python -m pip install -r requirements.txt
 ```
 
-## 正式训练
+## Training
 
-### 跨工况少样本（论文主流程）
+### Cross-Condition Few-Shot Learning (Main Experimental Pipeline)
 
-```powershell
+``` powershell
 python train.py --config configs/seu.yaml --mode fewshot
 python train.py --config configs/mcc5_thu.yaml --mode fewshot
 ```
 
-SEU 默认以 1200、1800 RPM 为源工况，2400 RPM 为目标工况。MCC5-THU 默认按排序后的工况将后 1/3 留作目标工况；建议数据到位后在 `target_conditions` 中显式写出论文实验使用的 4 个目标工况。
+For the SEU dataset, **1200 RPM** and **1800 RPM** are used as the
+source conditions by default, while **2400 RPM** is used as the target
+condition. For MCC5-THU, the last one-third of the sorted operating
+conditions are reserved as the target domain by default. After the
+dataset is finalized, it is recommended to explicitly specify the four
+target conditions used in the paper through the `target_conditions`
+field.
 
-### 普通监督训练
+### Standard Supervised Training
 
-```powershell
+``` powershell
 python train.py --config configs/seu.yaml --mode supervised
 ```
 
-监督模式只使用源工况的训练段训练，在源工况验证段选模型，并在目标工况测试段报告零样本跨工况性能。若要做随机/同工况监督实验，把 `target_conditions` 设置为空列表 `[]`。
+In supervised mode, only the training split of the source conditions is
+used for model training. Model selection is performed on the validation
+split of the source conditions, and zero-shot cross-condition
+performance is evaluated on the test split of the target conditions. For
+random split or same-condition supervised experiments, simply set
+`target_conditions` to an empty list (`[]`).
 
-### 评估检查点
+### Evaluate a Checkpoint
 
-```powershell
+``` powershell
 python evaluate.py --checkpoint runs\seu\best.pt
 python evaluate.py --checkpoint runs\seu\best.pt --episodes 500
 ```
 
-## 数据切分与防泄漏
+## Data Splitting and Leakage Prevention
 
-每个原始长记录先按时间顺序切成不重叠窗口，再在同一记录内按前 70% / 中间 15% / 后 15% 分为 train / val / test。这样避免随机打散相邻窗口造成明显泄漏。
+Each raw recording is first divided into non-overlapping temporal
+windows. The windows are then split sequentially into **70% training**,
+**15% validation**, and **15% testing** within the same recording. This
+strategy avoids data leakage caused by randomly shuffling neighboring
+windows.
 
-少样本模式：
+In few-shot mode:
 
-- 源工况 train：Proto-MAML 元训练的支撑集与查询集；
-- 源工况 train → val：模型选择；
-- 目标工况 train → test：K-shot 支撑集与独立查询集；
-- 目标评估阶段只计算类别原型，不做梯度更新。
+-   Source-condition **train**: support/query sets for Proto-MAML
+    meta-training.
+-   Source-condition **train → validation**: model selection.
+-   Target-condition **train → test**: K-shot support set and
+    independent query set.
+-   During target-domain evaluation, only class prototypes are computed;
+    no gradient updates are performed.
 
-`normalization: per_window` 对每个窗口、每个传感器独立标准化。若幅值本身是主要诊断特征，可改为 `per_recording` 或 `none`。
+`normalization: per_window` independently normalizes each sensor in
+every window. If signal amplitude itself is an important diagnostic
+feature, `per_recording` or `none` can be used instead.
 
-## 两套数据集共用的接口
+## Unified Interface for Both Datasets
 
-模型统一接收：
+The model accepts inputs in the following format:
 
-```text
+``` text
 x: [batch, num_sensors, window_size]
 ```
 
-传感器数由缓存清单自动确定，类别数由文件发现结果自动确定。因此同一模型代码可以处理 3 节点 SEU 和 6 节点 MCC5-THU，只需切换 YAML。
+The number of sensors is determined automatically from the cached
+metadata, while the number of fault classes is inferred through dataset
+discovery. Therefore, the same model implementation supports both the
+**3-sensor SEU** dataset and the **6-sensor MCC5-THU** dataset by simply
+switching the YAML configuration.
 
-可在 YAML 中控制：
+The following options can be configured in the YAML file:
 
-- `window_size` / `stride`：滑窗；
-- `include_conditions` / `target_conditions`：源目标工况；
-- `include_labels`：限制故障类别；
-- `channel_names`：显式指定信号列；
-- `embed_dim` / `memory_size` / `graph_layers`；
-- `graph_beta`：结构先验与动态注意力的融合权重；
-- `ways` / `shots` / `queries`：少样本 episode；
-- `first_order`：一阶或二阶 MAML。
+-   `window_size` / `stride`: sliding-window configuration.
+-   `include_conditions` / `target_conditions`: source and target
+    operating conditions.
+-   `include_labels`: selected fault categories.
+-   `channel_names`: explicitly specify signal channels.
+-   `embed_dim` / `memory_size` / `graph_layers`: model architecture.
+-   `graph_beta`: fusion weight between structural priors and dynamic
+    attention.
+-   `ways` / `shots` / `queries`: few-shot episode settings.
+-   `first_order`: first-order or second-order MAML.
 
-## 输出
+## Outputs
 
-每次训练目录包含：
+Each training run generates:
 
-- `best.pt`：验证集最优检查点；
-- `last.pt`：带最终摘要的检查点；
-- `history.json`：逐 epoch 指标；
-- `summary.json`：目标测试、参数量和耗时；
-- `evaluation.json`：单独运行 `evaluate.py` 的结果。
+-   `best.pt`: best checkpoint on the validation set.
+-   `last.pt`: final checkpoint with training summary.
+-   `history.json`: metrics recorded for each epoch.
+-   `summary.json`: target-domain test results, model size, and runtime
+    statistics.
+-   `evaluation.json`: results produced by `evaluate.py`.
 
-预处理缓存按原文件路径、大小、修改时间和滑窗配置生成哈希目录。修改数据或关键预处理参数后会自动创建新缓存。
+The preprocessing cache is indexed using the original file path, file
+size, modification timestamp, and sliding-window configuration. Whenever
+the raw data or key preprocessing settings change, a new cache is
+created automatically.
